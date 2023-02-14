@@ -49,29 +49,46 @@ public class StoreCenterServiceImpl extends BaseMpServiceImpl<StoreCenterMapper,
 
     @Override
     public PageResult<StoreCenter> query(Integer pageIndex, Integer pageSize, QueryStoreCenterVo vo) {
-
-       return null;
+        Assert.greaterThanZero(pageIndex);
+        Assert.greaterThanZero(pageSize);
+        
+        PageHelperUtil.startPage(pageIndex, pageSize);
+        List<StoreCenter> datas = getBaseMapper().query(vo);
+        
+       return PageResultUtil.convert(new PageInfo<>(datas));
     }
 
     @Cacheable(value = StoreCenter.CACHE_NAME, key = "#id", unless = "#result == null")
     @Override
     public StoreCenter findById(String id) {
 
-        return null;
+        return getBaseMapper().selectById(id);
     }
 
     @OpLog(type = OpLogType.OTHER, name = "停用仓库，ID：{}", params = "#ids", loopFormat = true)
     @Transactional
     @Override
     public void batchUnable(Collection<String> ids) {
+        if(CollectionUtil.isEmpty(ids)) {
+            return;
+        }
 
+        Wrapper<StoreCenter> updateWrapper = Wrappers.lambdaUpdate(StoreCenter.class)
+                .set(StoreCenter::getAvailable, Boolean.FALSE).in(StoreCenter::getId, ids);
+        getBaseMapper().update(updateWrapper);
     }
 
     @OpLog(type = OpLogType.OTHER, name = "启用仓库，ID：{}", params = "#ids", loopFormat = true)
     @Transactional
     @Override
     public void batchEnable(Collection<String> ids) {
+        if(CollectionUtil.isEmpty(ids)) {
+            return;
+        }
 
+        Wrapper<StoreCenter> updateWrapper = Wrappers.lambdaUpdate(StoreCenter.class)
+                .set(StoreCenter::getAvailable, Boolean.TRUE).in(StoreCenter::getId, ids);
+        getBaseMapper().update(updateWrapper);
     }
 
     @OpLog(type = OpLogType.OTHER, name = "新增仓库，ID：{}, 编号：{}", params = {"#id", "#code"})
@@ -122,13 +139,55 @@ public class StoreCenterServiceImpl extends BaseMpServiceImpl<StoreCenterMapper,
     @Transactional
     @Override
     public void update(UpdateStoreCenterVo vo) {
+        StoreCenter data = getBaseMapper().selectById(vo.getId());
+        if(ObjectUtil.isNull(data)) {
+            throw new DefaultClientException("仓库不存在！");
+        }
 
+        Wrapper<StoreCenter> checkWrapper = Wrappers.lambdaQuery(StoreCenter.class).eq(StoreCenter::getCode, vo.getCode())
+                .ne(StoreCenter::getId, vo.getId());
+        if(getBaseMapper().selectCount(checkWrapper) > 0) {
+            throw new DefaultClientException("编号重复，请重新输入！");
+        }
+
+        LambdaUpdateWrapper<StoreCenter> updateWrapper = Wrappers.lambdaUpdate(StoreCenter.class)
+                .set(StoreCenter::getCode, vo.getCode())
+                .set(StoreCenter::getName, !StringUtil.isBlank(vo.getName()) ? vo.getName() : null)
+                .set(StoreCenter::getContact, !StringUtil.isBlank(vo.getContact()) ? vo.getContact() : null)
+                .set(StoreCenter::getTelephone, !StringUtil.isBlank(vo.getTelephone()) ? vo.getTelephone() : null)
+                .set(StoreCenter::getAddress, !StringUtil.isBlank(vo.getAddress()) ? vo.getAddress() : null)
+                .set(StoreCenter::getPeopleNum, vo.getPeopleNum())
+                .set(StoreCenter::getAvailable, vo.getAvailable())
+                .set(StoreCenter::getDescription, StringUtil.isBlank(vo.getDescription()) ? StringPool.EMPTY_STR : vo.getDescription())
+                .eq(StoreCenter::getId, vo.getId());
+
+        if(!StringUtil.isBlank(vo.getCityId())) {
+            DicCityDto city = dicCityService.findById(vo.getCityId());
+            if(!ObjectUtil.isNull(city)) {
+                updateWrapper.set(StoreCenter::getCityId, vo.getCityId());
+            }
+        } else {
+            updateWrapper.set(StoreCenter::getCityId, null);
+        }
+
+        getBaseMapper().update(updateWrapper);
+
+        OpLogUtil.setVariable("id", data.getId());
+        OpLogUtil.setVariable("code", vo.getCode());
+        OpLogUtil.setExtra(vo);
     }
 
     @Override
     public PageResult<StoreCenter> selector(Integer pageIndex, Integer pageSize, QueryStoreCenterSelectorVo vo) {
 
-       return null;
+        Assert.greaterThanZero(pageIndex);
+        Assert.greaterThanZero(pageSize);
+
+        PageHelperUtil.startPage(pageIndex, pageSize);
+        List<StoreCenter> datas = getBaseMapper().selector(vo);
+
+
+       return PageResultUtil.convert(new PageInfo<>(datas));
     }
 
     @CacheEvict(value = StoreCenter.CACHE_NAME, key = "#key")

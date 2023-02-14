@@ -2,8 +2,10 @@ package com.lframework.xingyun.api.controller.basedata.storecenter;
 
 import com.lframework.common.exceptions.impl.DefaultClientException;
 
+import com.lframework.common.utils.CollectionUtil;
 import com.lframework.starter.mybatis.resp.PageResult;
 
+import com.lframework.starter.mybatis.utils.PageResultUtil;
 import com.lframework.starter.security.controller.DefaultBaseController;
 import com.lframework.starter.web.resp.InvokeResult;
 
@@ -12,27 +14,33 @@ import com.lframework.starter.web.utils.ExcelUtil;
 import com.lframework.xingyun.api.bo.basedata.storecenter.GetStoreCenterBo;
 import com.lframework.xingyun.api.bo.basedata.storecenter.QueryStoreCenterBo;
 
+import com.lframework.xingyun.api.bo.basedata.supplier.GetSupplierBo;
+import com.lframework.xingyun.api.excel.basedata.storecenter.StoreCenterImportListener;
 import com.lframework.xingyun.api.excel.basedata.storecenter.StoreCenterImportModel;
 
+import com.lframework.xingyun.basedata.entity.StoreCenter;
 import com.lframework.xingyun.basedata.service.storecenter.IStoreCenterService;
 
 import com.lframework.xingyun.basedata.vo.storecenter.CreateStoreCenterVo;
+import com.lframework.xingyun.basedata.vo.storecenter.QueryStoreCenterVo;
+import com.lframework.xingyun.basedata.vo.storecenter.UpdateStoreCenterVo;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
 
+import io.swagger.annotations.ApiParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
+import java.util.List;
+import java.util.stream.Collectors;
 
 
 /**
@@ -55,10 +63,18 @@ public class StoreCenterController extends DefaultBaseController {
   @ApiOperation("仓库列表")
   @PreAuthorize("@permission.valid('base-data:store-center:query','base-data:store-center:add','base-data:store-center:modify')")
   @GetMapping("/query")
-  public InvokeResult<PageResult<QueryStoreCenterBo>> query() {
+  public InvokeResult<PageResult<QueryStoreCenterBo>> query(@Valid QueryStoreCenterVo vo) {
 
-    throw new DefaultClientException("仓库列表查询待完成!");
+    PageResult<StoreCenter> pageResult = storeCenterService.query(getPageIndex(vo), getPageSize(vo), vo);
 
+    List<StoreCenter> datas = pageResult.getDatas();
+    List<QueryStoreCenterBo> result = null;
+
+    if(!CollectionUtil.isEmpty(datas)) {
+      result = datas.stream().map(QueryStoreCenterBo::new).collect(Collectors.toList());
+    }
+
+    return InvokeResultBuilder.success(PageResultUtil.rebuild(pageResult, result));
   }
 
   /**
@@ -68,12 +84,16 @@ public class StoreCenterController extends DefaultBaseController {
   @ApiImplicitParam(value = "ID", name = "id", paramType = "query", required = true)
   @PreAuthorize("@permission.valid('base-data:store-center:query','base-data:store-center:add','base-data:store-center:modify')")
   @GetMapping
-  public InvokeResult<GetStoreCenterBo> get() {
+  public InvokeResult<GetStoreCenterBo> get(@NotBlank(message = "ID不能为空！") String id) {
 
+    StoreCenter data = storeCenterService.findById(id);
+    if(data == null) {
+      throw new DefaultClientException("仓库信息不存在！");
+    }
 
-    throw new DefaultClientException("仓库查询待完成!");
+    GetStoreCenterBo result = new GetStoreCenterBo(data);
 
-
+    return InvokeResultBuilder.success(result);
   }
 
   /**
@@ -83,10 +103,15 @@ public class StoreCenterController extends DefaultBaseController {
   @PreAuthorize("@permission.valid('base-data:store-center:modify')")
   @PatchMapping("/unable/batch")
   public InvokeResult<Void> batchUnable(
-      ) {
+          @ApiParam(value = "ID", required = true) @NotEmpty(message = "请选择需要停用的仓库！") @RequestBody List<String> ids) {
 
-    throw new DefaultClientException("批量停用仓库待完成!");
+    storeCenterService.batchUnable(ids);
 
+    for (String id : ids) {
+      storeCenterService.cleanCacheByKey(id);
+    }
+
+    return InvokeResultBuilder.success();
   }
 
   /**
@@ -96,11 +121,15 @@ public class StoreCenterController extends DefaultBaseController {
   @PreAuthorize("@permission.valid('base-data:store-center:modify')")
   @PatchMapping("/enable/batch")
   public InvokeResult<Void> batchEnable(
-      ) {
+          @ApiParam(value = "ID", required = true) @NotEmpty(message = "请选择需要启用的仓库！") @RequestBody List<String> ids) {
 
-    throw new DefaultClientException("批量启用仓库待完成!");
+    storeCenterService.batchEnable(ids);
 
+    for (String id : ids) {
+      storeCenterService.cleanCacheByKey(id);
+    }
 
+    return InvokeResultBuilder.success();
   }
 
   /**
@@ -122,10 +151,13 @@ public class StoreCenterController extends DefaultBaseController {
   @ApiOperation("修改仓库")
   @PreAuthorize("@permission.valid('base-data:store-center:modify')")
   @PutMapping
-  public InvokeResult<Void> update() {
+  public InvokeResult<Void> update(@Valid UpdateStoreCenterVo vo) {
 
-    throw new DefaultClientException("修改仓库待完成!");
+    storeCenterService.update(vo);
 
+    storeCenterService.cleanCacheByKey(vo.getId());
+
+    return InvokeResultBuilder.success();
   }
 
   @ApiOperation("下载导入模板")
@@ -138,9 +170,13 @@ public class StoreCenterController extends DefaultBaseController {
   @ApiOperation("导入")
   @PreAuthorize("@permission.valid('base-data:store-center:import')")
   @PostMapping("/import")
-  public InvokeResult<Void> importExcel() {
+  public InvokeResult<Void> importExcel(@NotBlank(message = "ID不能为空") String id,
+                                        @NotNull(message = "请上传文件") MultipartFile file) {
 
-    throw new DefaultClientException("导入待完成!");
+    StoreCenterImportListener listener = new StoreCenterImportListener();
+    listener.setTaskId(id);
+    ExcelUtil.read(file, StoreCenterImportModel.class, listener).sheet().doRead();
 
+    return InvokeResultBuilder.success();
   }
 }
