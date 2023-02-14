@@ -7,6 +7,7 @@ import com.lframework.starter.mybatis.resp.PageResult;
 import com.lframework.starter.security.controller.DefaultBaseController;
 import com.lframework.starter.web.resp.InvokeResult;
 
+import com.lframework.starter.web.resp.InvokeResultBuilder;
 import com.lframework.starter.web.utils.ExcelUtil;
 import com.lframework.xingyun.api.bo.basedata.storecenter.GetStoreCenterBo;
 import com.lframework.xingyun.api.bo.basedata.storecenter.QueryStoreCenterBo;
@@ -15,6 +16,7 @@ import com.lframework.xingyun.api.excel.basedata.storecenter.StoreCenterImportMo
 
 import com.lframework.xingyun.basedata.service.storecenter.IStoreCenterService;
 
+import com.lframework.xingyun.basedata.vo.storecenter.CreateStoreCenterVo;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
 
 
 /**
@@ -105,10 +109,11 @@ public class StoreCenterController extends DefaultBaseController {
   @ApiOperation("新增仓库")
   @PreAuthorize("@permission.valid('base-data:store-center:add')")
   @PostMapping
-  public InvokeResult<Void> create() {
-
-    throw new DefaultClientException("新增仓库待完成!");
-
+  public InvokeResult<Void> create(
+          @Valid CreateStoreCenterVo vo
+          ) {
+    storeCenterService.create(vo);
+    return InvokeResultBuilder.success();
   }
 
   /**
